@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environment (venv)
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+
+# Pyenv
+.python-version
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Byte-compiled / optimized / DLL files
+*.pyc
+
+# Cache and temporary files
+*.log
+*.pot
+*.cache
+*.coverage
+.coverage.*
+.cache/
+*.DS_Store
+Thumbs.db
+
+# Pytest
+.pytest_cache/
+.tox/
+.nox/
+
+# Local environment variables
+.env
+.env.*
+!.env.template
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+pip-wheel-metadata/
+__pycache__/
+*.whl
+
+# C extensions
+*.pyd
+
+# Custom configs
+*.ini
+*.toml
+*.cfg
+*.yaml
+*.yml
+
+# FastAPI specific
+*.pid
+
+# Local Calculation Caches
+analysis_cache
+storage
