@@ -1,4 +1,5 @@
 from io import BytesIO
+import os
 from pathlib import Path
 
 import magic
@@ -6,6 +7,9 @@ from pdf2image import convert_from_path
 from PIL import Image
 
 from comprendo.types.image_artifact import ImageArtifact
+
+
+disable_pdf_to_image = os.environ.get("DISABLE_PDF_TO_IMAGE")
 
 
 def detect_file_type(file_path: Path):
@@ -41,6 +45,9 @@ def get_document_as_images(document_location: Path) -> list[ImageArtifact]:
             png_files = sorted(cache_folder_path.glob(f"{cache_file_name_base}.*.png"))
             if png_files:
                 pil_images = [Image.open(png_file) for png_file in png_files]
+
+        if disable_pdf_to_image:
+            return []
 
         if not pil_images:
             # TODO - detect "image scanned pdfs" - and extract the image instead of rendering the pdf to an image

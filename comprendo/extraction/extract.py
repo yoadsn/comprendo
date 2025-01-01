@@ -86,10 +86,6 @@ experts_cache_context = ["1", expert_system_prompt, expert_query_prompt]
 
 
 def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: list[ImageArtifact]):
-    # measurements_description = "\n".join(
-    #     [f'{m.name}{" (qualitative)" if m.qualitative else ""}' for m in task.request.measurements]
-    # )
-
     cache = SimpleFileCache(get_experts_cache_dir(task), experts_cache_context)
     cache_key = f"expert_response_{expert_llm._llm_type}"
     cached_response = cache.get(cache_key)
