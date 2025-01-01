@@ -1,9 +1,13 @@
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from pydantic.json_schema import SkipJsonSchema
 
 
-class ConsolidatedBatchMeasurement(BaseModel):
+class ConsolidatedMeasurementResult(BaseModel):
+    # Not included in the JSON schema so the model will not try to fill this in
+    id: SkipJsonSchema[Optional[str]] = None
+
     description: str
     value: str | float | bool | None
     accept: bool
@@ -13,7 +17,7 @@ class ConsolidatedBatchMeasurement(BaseModel):
 
 
 class ConsolidatedBatch(BaseModel):
-    results: List[ConsolidatedBatchMeasurement]
+    results: List[ConsolidatedMeasurementResult]
 
     batch_number: Optional[str]
     expiration_date: Optional[str] = Field(..., description="Using ISO 8601 Date format")

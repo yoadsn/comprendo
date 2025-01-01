@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
-class MeasurementResult(BaseModel):
+class MeasurementResultResponse(BaseModel):
     measurement_id: Optional[str]  # May be None if measurement is unknown or not matched
     measurement_name: str
     value: str | float | bool | None
@@ -10,15 +10,15 @@ class MeasurementResult(BaseModel):
     flag_uncertain: bool
 
 
-class BatchData(BaseModel):
+class BatchDataResponse(BaseModel):
     batch_number: str | None
     expiration_date: str | None
-    results: List[MeasurementResult]
+    results: List[MeasurementResultResponse]
 
 
 class COAResponse(BaseModel):
-    task_id: str
+    request_id: str
     order_number: str | None
+    batches: List[BatchDataResponse]
     identification_warning: bool
-    batches: List[BatchData]
-    mock: bool = False
+    mock: Optional[bool] = False

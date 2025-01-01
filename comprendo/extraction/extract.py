@@ -1,5 +1,6 @@
 import os
 import pathlib
+import json
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
@@ -12,22 +13,22 @@ from comprendo.caching.cache import SimpleFileCache
 from comprendo.types.consolidated_report import ConsolidatedReport
 from comprendo.types.extraction_result import ExtractionResult
 from comprendo.types.image_artifact import ImageArtifact
-from comprendo.types.measurement_mapping import MeasurementMappingTable
+from comprendo.types.measurement_mapping import MeasurementMappingEntry, MeasurementMappingTable
 from comprendo.types.task import Task
 
 base_cache_dir = pathlib.Path("analysis_cache")
 
 
 def get_experts_cache_dir(task: Task) -> pathlib.Path:
-    return base_cache_dir / task.id / "experts"
+    return base_cache_dir / task.request.id / "experts"
 
 
 def get_supervisor_consolidation_cache_dir(task: Task) -> pathlib.Path:
-    return base_cache_dir / task.id / "supervisor_consolidation"
+    return base_cache_dir / task.request.id / "supervisor_consolidation"
 
 
 def get_supervisor_mapping_cache_dir(task: Task) -> pathlib.Path:
-    return base_cache_dir / task.id / "supervisor_mapping"
+    return base_cache_dir / task.request.id / "supervisor_mapping"
 
 
 gemini_analysis_expert_llm = ChatGoogleGenerativeAI(
@@ -139,7 +140,12 @@ supervisor_consolidation_prompt_template = ChatPromptTemplate(
     ]
 )
 
-supervisor_consolidation_cache_context = ["1", supervisor_system_prompt, supervisor_consolidation_query_prompt]
+supervisor_consolidation_cache_context = [
+    "1",
+    supervisor_system_prompt,
+    supervisor_consolidation_query_prompt,
+    json.dumps(ConsolidatedReport.model_json_schema()),
+]
 
 
 def supervisor_consolidation(task: Task, expert_results: list[str]) -> ConsolidatedReport:
@@ -185,7 +191,12 @@ supervisor_measurement_mapping_prompt_template = ChatPromptTemplate(
     [SystemMessage(content=supervisor_system_prompt), supervisor_measurement_mapping_query_prompt]
 )
 
-supervisor_mapping_cache_context = ["1", supervisor_system_prompt, supervisor_measurement_mapping_query_prompt]
+supervisor_mapping_cache_context = [
+    "1",
+    supervisor_system_prompt,
+    supervisor_measurement_mapping_query_prompt,
+    json.dumps(MeasurementMappingTable.model_json_schema()),
+]
 
 
 def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> MeasurementMappingTable:
@@ -211,8 +222,63 @@ def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> M
 
     response: MeasurementMappingTable = supervisor_mapper_llm.invoke(prompt)
 
+    # Add to the table the canonicals as well.
+    # If the report contains verbatim canonical descriptions
+    # We need to set the proper id on them as well
+    response.entries = response.entries + [
+        MeasurementMappingEntry(
+            raw_description=m.name,
+            mapped_to_canonical_id=m.id,
+        )
+        for m in task.request.measurements
+    ]
+
+    # Remove entries which do not map to a valid id
+    valid_canonical_ids = set(m.id for m in task.request.measurements)
+    response.entries = [e for e in response.entries if e.mapped_to_canonical_id in valid_canonical_ids]
+
     cache.put(cache_key, response.model_dump_json())
     return response
+
+
+def remap_measurements_to_canonical(
+    task: Task, consolidated_report: ConsolidatedReport, mapping_table: MeasurementMappingTable
+) -> ConsolidatedReport:
+    # Go over all measurement descriptions.
+    # Either map them to a canonical (if description is found in mapping table)
+    # or leave them unmapped
+    lookup = {e.raw_description.strip().lower(): e.mapped_to_canonical_id for e in mapping_table.entries}
+    canonical_names = set([m.name for m in task.request.measurements])
+
+    for batch in consolidated_report.batches:
+        # first pass - assign ids to canonicals. They take priority
+        used_canonical_ids = set()
+        for m in batch.results:
+            if m.description in canonical_names:
+                found_mapped_id = lookup.get(m.description.strip().lower())
+                if found_mapped_id:
+                    m.id = found_mapped_id
+                    used_canonical_ids.add(found_mapped_id)
+
+        for m in batch.results:
+            found_mapped_id = lookup.get(m.description.strip().lower())
+            if (
+                found_mapped_id
+                # Ensure thius mapped id was not taken by another measurement already
+                and not found_mapped_id in used_canonical_ids
+            ):
+                used_canonical_ids.add(found_mapped_id)
+                m.id = found_mapped_id
+
+    return consolidated_report
+
+
+def generate_extraction_result(
+    task: Task, consolidated_report: ConsolidatedReport, mapping_table: MeasurementMappingTable
+) -> ExtractionResult:
+    consolidated_report = remap_measurements_to_canonical(task, consolidated_report, mapping_table)
+
+    return ExtractionResult(request_id=task.request.id, consolidated_report=consolidated_report)
 
 
 def extract(task: Task, image_artifacts: list[ImageArtifact]):
@@ -229,7 +295,8 @@ def extract(task: Task, image_artifacts: list[ImageArtifact]):
     mapping_table = supervisor_mapping(task, consolidated_report)
     print_mapping_table(mapping_table)
 
-    extraction_result = ExtractionResult(measurements_mapping=mapping_table, consolidated_report=consolidated_report)
+    extraction_result = generate_extraction_result(task, consolidated_report, mapping_table)
+
     return extraction_result
 
 
@@ -257,9 +324,11 @@ def print_report_formatted(task: Task, report: ConsolidatedReport) -> None:
             accepted_str = "Yes" if result.accept else "No"
             disagreement_str = "Yes" if result.flag_disagreement else "No"
             print(f"{measurement_desc:<40}{value_str:<20}{accepted_str:<10}{disagreement_str:<15}")
+    print(f"<-{'-' * 40}->")
 
 
 def print_mapping_table(mapping_table: MeasurementMappingTable) -> None:
     print("=== Measurement Mapping Table ===")
     for entry in mapping_table.entries:
-        print(f"{entry.mapped_to_id}: {entry.description}")
+        print(f"{entry.mapped_to_canonical_id}: {entry.raw_description}")
+    print(f"<-{'-' * 40}->")

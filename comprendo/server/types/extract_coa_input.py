@@ -9,5 +9,6 @@ class RequestMeasurement(BaseModel):
 
 
 class COARequest(BaseModel):
+    id: str | None
     order_number: str
     measurements: List[RequestMeasurement]

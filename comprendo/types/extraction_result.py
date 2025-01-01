@@ -6,6 +6,6 @@ from comprendo.types.measurement_mapping import MeasurementMappingTable
 
 
 class ExtractionResult(BaseModel):
-    measurements_mapping: MeasurementMappingTable
+    request_id: str
     consolidated_report: ConsolidatedReport
     errors: Optional[List[str]] = None

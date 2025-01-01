@@ -4,8 +4,8 @@ from pydantic import BaseModel
 
 
 class MeasurementMappingEntry(BaseModel):
-    description: str
-    mapped_to_id: str
+    raw_description: str
+    mapped_to_canonical_id: str
 
 
 class MeasurementMappingTable(BaseModel):
