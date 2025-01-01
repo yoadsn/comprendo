@@ -71,3 +71,6 @@ __pycache__/
 # Local Calculation Caches
 analysis_cache
 storage
+
+# Azure Function Apps
+local.settings.json
