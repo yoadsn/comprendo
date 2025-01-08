@@ -69,7 +69,7 @@ def map_extraction_result_to_response(task: Task, extraction_result: ExtractionR
     return response
 
 
-@app.get("/extract/coa")
+@app.post("/extract/coa")
 async def extract_coa(
     # Accept multiple PDF files
     files: List[UploadFile] = File(...),

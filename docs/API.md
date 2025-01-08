@@ -13,7 +13,7 @@ The COA Extraction Service processes Certificates of Analysis (COA) documents, p
 `https://{base_url}/extract/coa`
 
 **Method:**  
-`GET`
+`POST`
 
 **Content Type:**  
 Multipart Form-Data
