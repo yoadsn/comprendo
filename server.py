@@ -99,7 +99,8 @@ async def extract_coa(
         input_files = []
         for file in files:
             file_id = str(uuid.uuid4())
-            file_path = storage_dir_path / f"{file_id}-{file.filename}"
+            input_filename = Path(file.filename).name
+            file_path = storage_dir_path / f"{file_id}-{input_filename}"
             with open(file_path, "wb") as f:
                 f.write(await file.read())
             input_files.append((file_path, file_id))
