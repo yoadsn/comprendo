@@ -1,10 +1,14 @@
+import logging
 import os
 import pathlib
 import json
+from typing import Optional
+
 
 from langchain_anthropic import ChatAnthropic
+from langchain_core.load import dumps
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
@@ -17,6 +21,8 @@ from comprendo.types.measurement_mapping import MeasurementMappingEntry, Measure
 from comprendo.types.task import Task
 
 base_cache_dir = pathlib.Path("analysis_cache")
+
+logger = logging.getLogger(__name__)
 
 
 def get_experts_cache_dir(task: Task) -> pathlib.Path:
@@ -49,13 +55,28 @@ anthropic_analysis_expert_llm = ChatAnthropic(
 )
 
 
-supervisor_consolidator_llm = ChatOpenAI(
-    model="gpt-4o", temperature=0, max_tokens=None, timeout=None, max_retries=2, streaming=False
-).with_structured_output(ConsolidatedReport, method="json_schema")
+supervisor_consolidator_model_name = "gpt-4o"
+supervisor_consolidator_llm = (
+    ChatOpenAI(
+        model=supervisor_consolidator_model_name,
+        temperature=0,
+        max_tokens=None,
+        timeout=None,
+        max_retries=2,
+        streaming=False,
+    )
+    .with_structured_output(ConsolidatedReport, method="json_schema", include_raw=True)
+    .with_config({"run_name": "supervisor_consolidator", "model": supervisor_consolidator_model_name})
+)
 
-supervisor_mapper_llm = ChatOpenAI(
-    model="gpt-4o", temperature=0, max_tokens=None, timeout=None, max_retries=2, streaming=False
-).with_structured_output(MeasurementMappingTable, method="json_schema")
+supervisor_mapper_model_name = "gpt-4o"
+supervisor_mapper_llm = (
+    ChatOpenAI(
+        model=supervisor_mapper_model_name, temperature=0, max_tokens=None, timeout=None, max_retries=2, streaming=False
+    )
+    .with_structured_output(MeasurementMappingTable, method="json_schema", include_raw=True)
+    .with_config({"run_name": "supervisor_mapper", "model": supervisor_mapper_model_name})
+)
 
 
 expert_system_prompt = "You are an expert in the field of material quality analysis and inspection. You output Markdown"
@@ -86,10 +107,12 @@ experts_cache_context = ["1", expert_system_prompt, expert_query_prompt]
 
 
 def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: list[ImageArtifact]):
+    logger.info(f"Extraction using {expert_llm._llm_type}")
     cache = SimpleFileCache(get_experts_cache_dir(task), experts_cache_context)
     cache_key = f"expert_response_{expert_llm._llm_type}"
     cached_response = cache.get(cache_key)
     if cached_response:
+        logger.info(f"Using cached response from {expert_llm._llm_type}: {json.dumps(cached_response)}")
         return cached_response
 
     images_message = HumanMessage(
@@ -106,10 +129,11 @@ def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: 
         images=[images_message],
     )
 
-    extraction_message: ConsolidatedReport = expert_llm.invoke(prompt)
-    print(extraction_message.usage_metadata)
+    extraction_message: AIMessage = expert_llm.invoke(prompt)
+    logger.info(f"Extraction usage metadata: {json.dumps(extraction_message.usage_metadata)}")
 
     cache.put(cache_key, extraction_message.content)
+    logger.info(f"Extracted content: {json.dumps(extraction_message.content)}")
     return extraction_message.content
 
 
@@ -145,10 +169,14 @@ supervisor_consolidation_cache_context = [
 
 
 def supervisor_consolidation(task: Task, expert_results: list[str]) -> ConsolidatedReport:
+    logger.info(
+        f'Consolidating {len(expert_results)} expert results using {supervisor_consolidator_llm.config["model"]}'
+    )
     cache = SimpleFileCache(get_supervisor_consolidation_cache_dir(task), supervisor_consolidation_cache_context)
     cache_key = "supervisor"
     supervisor_cached_response = cache.get(cache_key)
     if supervisor_cached_response:
+        logger.info(f"Using cached supervisor consolidation response: {supervisor_cached_response}")
         output_as_json = supervisor_cached_response
         return ConsolidatedReport.model_validate_json(output_as_json)
 
@@ -160,11 +188,22 @@ def supervisor_consolidation(task: Task, expert_results: list[str]) -> Consolida
         expert_inputs=expert_responses_inputs,
     )
 
-    print(prompt[1].content)
+    logger.info(f"Invoking supervisor consolidator with prompt: {dumps(prompt)}")
 
-    response: ConsolidatedReport = supervisor_consolidator_llm.invoke(prompt)
+    full_response: dict = supervisor_consolidator_llm.invoke(prompt)
+    response: ConsolidatedReport = full_response["parsed"]
+    response_message: AIMessage = full_response["raw"]
+    parsing_error: Optional[BaseException] = full_response["parsing_error"]
+    if parsing_error:
+        logger.error(f"Error parsing supervisor consolidation response: {parsing_error}")
+        raise parsing_error
 
-    cache.put(cache_key, response.model_dump_json())
+    logger.info(f"Supervisor consolidation usage metadata: {response_message.usage_metadata}")
+
+    response_as_json_dump = response.model_dump_json()
+    cache.put(cache_key, response_as_json_dump)
+    logger.info(f"Supervisor consolidation response: {response_as_json_dump}")
+
     return response
 
 
@@ -196,6 +235,7 @@ supervisor_mapping_cache_context = [
 
 
 def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> MeasurementMappingTable:
+    logger.info(f'Invoking supervisor mapping of consolidated report using {supervisor_mapper_llm.config["model"]}')
     cache = SimpleFileCache(get_supervisor_mapping_cache_dir(task), supervisor_mapping_cache_context)
     cache_key = "supervisor"
     supervisor_cached_response = cache.get(cache_key)
@@ -214,9 +254,19 @@ def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> M
         canonical_measurement_list=canonical_measurements_spec_rows,
     )
 
-    print(prompt[1].content)
+    logger.info(f"Supervisor mapping prompt: {dumps(prompt)}")
 
-    response: MeasurementMappingTable = supervisor_mapper_llm.invoke(prompt)
+    full_response: dict = supervisor_mapper_llm.invoke(prompt)
+    response: MeasurementMappingTable = full_response["parsed"]
+    response_message: AIMessage = full_response["raw"]
+    parsing_error = Optional[BaseException] = full_response["parsing_error"]
+    if parsing_error:
+        logger.error(f"Error parsing supervisor mapping response: {parsing_error}")
+        raise parsing_error
+
+    logger.info(f"Supervisor mapping usage metadata: {response_message.usage_metadata}")
+
+    logger.info(f"Supervisor mapping llm response: {response.model_dump_json()}")
 
     # Add to the table the canonicals as well.
     # If the report contains verbatim canonical descriptions
@@ -233,7 +283,9 @@ def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> M
     valid_canonical_ids = set(m.id for m in task.request.measurements)
     response.entries = [e for e in response.entries if e.mapped_to_canonical_id in valid_canonical_ids]
 
-    cache.put(cache_key, response.model_dump_json())
+    response_as_json_dump = response.model_dump_json()
+    cache.put(cache_key, response_as_json_dump)
+    logger.info(f"Supervisor mapping final result: {response_as_json_dump}")
     return response
 
 
@@ -274,22 +326,20 @@ def generate_extraction_result(
 ) -> ExtractionResult:
     consolidated_report = remap_measurements_to_canonical(task, consolidated_report, mapping_table)
 
-    return ExtractionResult(request_id=task.request.id, consolidated_report=consolidated_report)
+    final_extraction_results = ExtractionResult(request_id=task.request.id, consolidated_report=consolidated_report)
+    logger.info(f"Final extraction results: {final_extraction_results.model_dump_json()}")
+    return final_extraction_results
 
 
 def extract(task: Task, image_artifacts: list[ImageArtifact]):
     res_expert_1 = extract_from_images(anthropic_analysis_expert_llm, task, image_artifacts)
-    print(res_expert_1)
-    print(f"<-{'-' * 40}->")
     res_expert_2 = extract_from_images(gemini_analysis_expert_llm, task, image_artifacts)
-    print(res_expert_2)
-    print(f"<-{'-' * 40}->")
 
     consolidated_report: ConsolidatedReport = supervisor_consolidation(task, [res_expert_1, res_expert_2])
-    print_report_formatted(task, consolidated_report)
+    # print_report_formatted(task, consolidated_report)
 
     mapping_table = supervisor_mapping(task, consolidated_report)
-    print_mapping_table(mapping_table)
+    # print_mapping_table(mapping_table)
 
     extraction_result = generate_extraction_result(task, consolidated_report, mapping_table)
 

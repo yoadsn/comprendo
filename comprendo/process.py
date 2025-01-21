@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from comprendo.extraction.extract import extract as live_extract
@@ -5,6 +6,10 @@ from comprendo.extraction.mock_extract import extract as mock_extract
 from comprendo.preprocess.document import get_document_as_images
 from comprendo.types.image_artifact import ImageArtifact
 from comprendo.types.task import Task
+from comprendo.logging import set_logging_context
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_task_document_image_artifacts(documents_paths: list[Path]) -> list[ImageArtifact]:
@@ -15,7 +20,10 @@ def load_task_document_image_artifacts(documents_paths: list[Path]) -> list[Imag
 
 
 def process_task(task: Task, documents_paths: list[Path]):
+    set_logging_context(task)
+    logger.info(f"Processing extraction task with {len(documents_paths)} documents")
     image_artifacts = load_task_document_image_artifacts(documents_paths)
+    logger.info(f"Derived {len(image_artifacts)} images")
     extract_fn = mock_extract if task.mock_mode else live_extract
     extraction_result = extract_fn(task, image_artifacts)
     return extraction_result
