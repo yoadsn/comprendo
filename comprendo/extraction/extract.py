@@ -194,7 +194,7 @@ def supervisor_consolidation(task: Task, expert_results: list[str]) -> Consolida
         expert_inputs=expert_responses_inputs,
     )
 
-    logger.info(f"Invoking supervisor consolidator with prompt: {dumps(prompt)}")
+    logger.info(f"Invoking supervisor consolidator with prompt: payload={dumps(prompt)}")
 
     full_response: dict = supervisor_consolidator_llm.invoke(prompt)
     response: ConsolidatedReport = full_response["parsed"]
@@ -205,14 +205,14 @@ def supervisor_consolidation(task: Task, expert_results: list[str]) -> Consolida
         raise parsing_error
 
     usage_metadata = response_message.usage_metadata
-    logger.info(f"Supervisor consolidation usage metadata: {response_message.usage_metadata}")
+    logger.info(f"Supervisor consolidation usage metadata: payload={response_message.usage_metadata}")
     cost = usage_metadata_to_cost(supervisor_consolidator_llm.config["model"], usage_metadata)
     task.cost += cost
     logger.info(f"Supervisor consolidation cost: {cost:.7f}")
 
     response_as_json_dump = response.model_dump_json()
     cache.put(cache_key, response_as_json_dump)
-    logger.info(f"Supervisor consolidation response: {response_as_json_dump}")
+    logger.info(f"Supervisor consolidation response: payload={response_as_json_dump}")
 
     return response
 
