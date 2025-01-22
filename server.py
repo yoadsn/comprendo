@@ -3,14 +3,15 @@ import os
 import uuid
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List
+from typing import Annotated, List
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Header, UploadFile
 from fastapi.responses import JSONResponse
 
 load_dotenv()
 
+from comprendo import __version__ as SERVER_VERSION
 from comprendo.process import process_task
 from comprendo.server.types.extract_coa_input import COARequest
 from comprendo.server.types.extract_coa_output import (
@@ -18,6 +19,7 @@ from comprendo.server.types.extract_coa_output import (
     COAResponse,
     MeasurementResultResponse,
 )
+from comprendo.server.security import validate_api_key, ClientCredentials
 from comprendo.types.consolidated_report import (
     ConsolidatedBatch,
     ConsolidatedMeasurementResult,
@@ -26,7 +28,6 @@ from comprendo.types.extraction_result import ExtractionResult
 from comprendo.types.task import Task
 
 app = FastAPI()
-mock_mode_active = os.environ.get("MOCK_MODE")
 
 
 def map_extracted_batch_result_to_response_measurement(
@@ -69,8 +70,23 @@ def map_extraction_result_to_response(task: Task, extraction_result: ExtractionR
     return response
 
 
+def detect_mock_mode(
+    client: Annotated[ClientCredentials, Depends(validate_api_key)],
+    x_comprendo_mock_mode: Annotated[bool | None, Header()] = False,
+) -> bool:
+    forced_mock_mode_active = os.environ.get("MOCK_MODE") == "True"
+    return forced_mock_mode_active or client.mock_only or x_comprendo_mock_mode
+
+
+@app.get("/ping")
+async def ping():
+    return JSONResponse(content={"server_version": SERVER_VERSION})
+
+
 @app.post("/extract/coa")
 async def extract_coa(
+    client: Annotated[ClientCredentials, Depends(validate_api_key)],
+    mock_mode: Annotated[bool, Depends(detect_mock_mode)],
     # Accept multiple PDF files
     files: List[UploadFile] = File(...),
     request: str = Form(...),
@@ -108,7 +124,7 @@ async def extract_coa(
         documents_paths = [Path(doc_file_path) for doc_file_path, _ in input_files]
         task = Task(
             request=input_data,
-            mock_mode=mock_mode_active,
+            mock_mode=mock_mode,
         )
         extraction_result = process_task(task, documents_paths)
         response = map_extraction_result_to_response(task, extraction_result)
