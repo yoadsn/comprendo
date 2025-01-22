@@ -7,6 +7,17 @@ The COA Extraction Service processes Certificates of Analysis (COA) documents, p
 
 ---
 
+## Authentication
+
+To use the COA Extraction Service, you need to authenticate using an API key. Include the API key in the request headers as follows:
+
+**Header:**
+`Authorization: Bearer <your_api_key>`
+
+*Note*: The API key is required also for the mock mode. Some api keys are limited to mock mode only.
+
+---
+
 ## API Endpoint
 
 **URL:**  
@@ -50,6 +61,13 @@ Multipart Form-Data
        - `id` (string): Unique identifier for the measurement (optional, can be `null` if not known).
        - `name` (string): Name or label of the measurement.
        - `qualitative` (boolean): Indicates if the measurement is qualitative (`true`) or quantitative (`false`).
+
+---
+
+## Request Headers  
+
+**`x-comprendo-mock-mode` (optional)**
+  - If set to `True`, the API will return mock data instead of processing the actual documents.
 
 ---
 
