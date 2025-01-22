@@ -21,4 +21,5 @@ class COAResponse(BaseModel):
     order_number: str | None
     batches: List[BatchDataResponse]
     identification_warning: bool
+    estimated_cost: float
     mock: Optional[bool] = False

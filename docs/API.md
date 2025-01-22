@@ -109,6 +109,7 @@ The response is a JSON object with the extracted results. It includes batch-spec
     - **`flag_uncertain`** (boolean): Indicates if the result is uncertain due to low confidence or ambiguous data.
 
 - **`identification_warning`** (boolean): Indicates if the document parsing encountered potential identification issues.
+- **`estimated_cost`** (float): The estimated cost of the extraction process (in USD).
 - **`mock`** (boolean): Indicates if the service is running in a mock or test mode.
 
 ---
@@ -142,6 +143,7 @@ The response is a JSON object with the extracted results. It includes batch-spec
         }
     ],
     "identification_warning": false,
+    "estimated_cost": 0.0153,
     "mock": false
 }
 ```

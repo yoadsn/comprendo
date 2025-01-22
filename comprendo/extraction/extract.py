@@ -19,6 +19,7 @@ from comprendo.types.extraction_result import ExtractionResult
 from comprendo.types.image_artifact import ImageArtifact
 from comprendo.types.measurement_mapping import MeasurementMappingEntry, MeasurementMappingTable
 from comprendo.types.task import Task
+from comprendo.extraction.cost import usage_metadata_to_cost
 
 base_cache_dir = pathlib.Path("analysis_cache")
 
@@ -37,23 +38,24 @@ def get_supervisor_mapping_cache_dir(task: Task) -> pathlib.Path:
     return base_cache_dir / task.request.id / "supervisor_mapping"
 
 
+gemini_expert_model_name = "gemini-1.5-flash"
 gemini_analysis_expert_llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
+    model=gemini_expert_model_name,
     temperature=0,
     max_tokens=1024,
     timeout=None,
-    max_retries=2,
+    max_retries=1,
     api_key=os.environ["GEMINI_API_KEY"],
-)
+).with_config({"model": gemini_expert_model_name})
 
+anthropic_expert_model_name = "claude-3-5-sonnet-20240620"
 anthropic_analysis_expert_llm = ChatAnthropic(
-    model="claude-3-5-sonnet-20240620",
+    model=anthropic_expert_model_name,
     temperature=0,
     max_tokens=1024,
     timeout=None,
-    max_retries=2,
-)
-
+    max_retries=1,
+).with_config({"model": anthropic_expert_model_name})
 
 supervisor_consolidator_model_name = "gpt-4o"
 supervisor_consolidator_llm = (
@@ -107,12 +109,12 @@ experts_cache_context = ["1", expert_system_prompt, expert_query_prompt]
 
 
 def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: list[ImageArtifact]):
-    logger.info(f"Extraction using {expert_llm._llm_type}")
+    logger.info(f"Extraction using {expert_llm.config['model']}")
     cache = SimpleFileCache(get_experts_cache_dir(task), experts_cache_context)
-    cache_key = f"expert_response_{expert_llm._llm_type}"
+    cache_key = f"expert_response_{expert_llm.config['model']}"
     cached_response = cache.get(cache_key)
     if cached_response:
-        logger.info(f"Using cached response from {expert_llm._llm_type}: {json.dumps(cached_response)}")
+        logger.info(f"Using cached response from {expert_llm.config['model']}: payload={json.dumps(cached_response)}")
         return cached_response
 
     images_message = HumanMessage(
@@ -130,10 +132,14 @@ def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: 
     )
 
     extraction_message: AIMessage = expert_llm.invoke(prompt)
-    logger.info(f"Extraction usage metadata: {json.dumps(extraction_message.usage_metadata)}")
+    usage_metadata = extraction_message.usage_metadata
+    logger.info(f"Extraction usage metadata: payload={json.dumps(extraction_message.usage_metadata)}")
+    cost = usage_metadata_to_cost(expert_llm.config["model"], usage_metadata)
+    task.cost += cost
+    logger.info(f"Extraction usage cost: {cost:.7f}")
 
     cache.put(cache_key, extraction_message.content)
-    logger.info(f"Extracted content: {json.dumps(extraction_message.content)}")
+    logger.info(f"Extracted content: payload={json.dumps(extraction_message.content)}")
     return extraction_message.content
 
 
@@ -198,7 +204,11 @@ def supervisor_consolidation(task: Task, expert_results: list[str]) -> Consolida
         logger.error(f"Error parsing supervisor consolidation response: {parsing_error}")
         raise parsing_error
 
+    usage_metadata = response_message.usage_metadata
     logger.info(f"Supervisor consolidation usage metadata: {response_message.usage_metadata}")
+    cost = usage_metadata_to_cost(supervisor_consolidator_llm.config["model"], usage_metadata)
+    task.cost += cost
+    logger.info(f"Supervisor consolidation cost: {cost:.7f}")
 
     response_as_json_dump = response.model_dump_json()
     cache.put(cache_key, response_as_json_dump)
@@ -254,19 +264,23 @@ def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> M
         canonical_measurement_list=canonical_measurements_spec_rows,
     )
 
-    logger.info(f"Supervisor mapping prompt: {dumps(prompt)}")
+    logger.info(f"Supervisor mapping prompt: payload={dumps(prompt)}")
 
     full_response: dict = supervisor_mapper_llm.invoke(prompt)
     response: MeasurementMappingTable = full_response["parsed"]
     response_message: AIMessage = full_response["raw"]
-    parsing_error = Optional[BaseException] = full_response["parsing_error"]
+    parsing_error: Optional[BaseException] = full_response["parsing_error"]
     if parsing_error:
         logger.error(f"Error parsing supervisor mapping response: {parsing_error}")
         raise parsing_error
 
-    logger.info(f"Supervisor mapping usage metadata: {response_message.usage_metadata}")
+    usage_metadata = response_message.usage_metadata
+    logger.info(f"Supervisor mapping usage metadata: payload={response_message.usage_metadata}")
+    cost = usage_metadata_to_cost(supervisor_mapper_llm.config["model"], usage_metadata)
+    task.cost += cost
+    logger.info(f"Supervisor mapping cost: {cost:.7f}")
 
-    logger.info(f"Supervisor mapping llm response: {response.model_dump_json()}")
+    logger.info(f"Supervisor mapping llm response: payload={response.model_dump_json()}")
 
     # Add to the table the canonicals as well.
     # If the report contains verbatim canonical descriptions
@@ -285,7 +299,7 @@ def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> M
 
     response_as_json_dump = response.model_dump_json()
     cache.put(cache_key, response_as_json_dump)
-    logger.info(f"Supervisor mapping final result: {response_as_json_dump}")
+    logger.info(f"Supervisor mapping final result: payload={response_as_json_dump}")
     return response
 
 
@@ -327,7 +341,7 @@ def generate_extraction_result(
     consolidated_report = remap_measurements_to_canonical(task, consolidated_report, mapping_table)
 
     final_extraction_results = ExtractionResult(request_id=task.request.id, consolidated_report=consolidated_report)
-    logger.info(f"Final extraction results: {final_extraction_results.model_dump_json()}")
+    logger.info(f"Final extraction results: payload={final_extraction_results.model_dump_json()}")
     return final_extraction_results
 
 
@@ -342,6 +356,8 @@ def extract(task: Task, image_artifacts: list[ImageArtifact]):
     # print_mapping_table(mapping_table)
 
     extraction_result = generate_extraction_result(task, consolidated_report, mapping_table)
+
+    logger.info(f"Total extraction cost: {task.cost:.7f}")
 
     return extraction_result
 

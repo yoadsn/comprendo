@@ -61,6 +61,7 @@ def map_extraction_result_to_response(task: Task, extraction_result: ExtractionR
         request_id=task.request.id,
         order_number=extraction_result.consolidated_report.order_number,
         identification_warning=extraction_result.consolidated_report.flag_identification_warning,
+        estimated_cost=task.cost,
         # Errors?
         batches=response_batches,
     )
