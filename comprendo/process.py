@@ -6,7 +6,6 @@ from comprendo.extraction.mock_extract import extract as mock_extract
 from comprendo.preprocess.document import get_document_as_images
 from comprendo.types.image_artifact import ImageArtifact
 from comprendo.types.task import Task
-from comprendo.logging import set_logging_context
 
 
 logger = logging.getLogger(__name__)

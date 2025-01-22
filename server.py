@@ -14,7 +14,7 @@ load_dotenv()
 from comprendo import __version__ as SERVER_VERSION
 from comprendo.process import process_task
 from comprendo.server.security import ClientCredentials, validate_api_key
-from comprendo.logging import set_logging_context
+from comprendo.app_logging import set_logging_context
 from comprendo.server.types.extract_coa_input import COARequest
 from comprendo.server.types.extract_coa_output import (
     BatchDataResponse,

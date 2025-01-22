@@ -1,4 +1,4 @@
-from comprendo.logging import init_logging
+from comprendo.app_logging import init_logging
 
 __version__ = "0.4.0"
 
