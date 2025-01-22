@@ -6,20 +6,21 @@ from tempfile import TemporaryDirectory
 from typing import Annotated, List
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Header, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 load_dotenv()
 
 from comprendo import __version__ as SERVER_VERSION
 from comprendo.process import process_task
+from comprendo.server.security import ClientCredentials, validate_api_key
+from comprendo.logging import set_logging_context
 from comprendo.server.types.extract_coa_input import COARequest
 from comprendo.server.types.extract_coa_output import (
     BatchDataResponse,
     COAResponse,
     MeasurementResultResponse,
 )
-from comprendo.server.security import validate_api_key, ClientCredentials
 from comprendo.types.consolidated_report import (
     ConsolidatedBatch,
     ConsolidatedMeasurementResult,
@@ -126,6 +127,7 @@ async def extract_coa(
             request=input_data,
             mock_mode=mock_mode,
         )
+        set_logging_context(task=task, client=client)
         extraction_result = process_task(task, documents_paths)
         response = map_extraction_result_to_response(task, extraction_result)
 
