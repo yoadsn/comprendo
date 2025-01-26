@@ -2,8 +2,6 @@ import argparse
 import json
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from comprendo.configuration import app_config
 from comprendo.server.types.extract_coa_input import COARequest
 from comprendo.process import process_task

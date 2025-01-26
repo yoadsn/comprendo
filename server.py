@@ -4,7 +4,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Annotated, List
 
-from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
