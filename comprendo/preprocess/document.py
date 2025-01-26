@@ -6,10 +6,11 @@ import magic
 from pdf2image import convert_from_path
 from PIL import Image
 
+from comprendo.configuration import app_config
 from comprendo.types.image_artifact import ImageArtifact
 
 
-disable_pdf_to_image = os.environ.get("DISABLE_PDF_TO_IMAGE")
+disable_pdf_to_image = app_config.bool("DISABLE_PDF_TO_IMAGE", False)
 
 
 def detect_file_type(file_path: Path):

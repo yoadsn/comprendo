@@ -13,6 +13,7 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
+from comprendo.configuration import app_config
 from comprendo.caching.cache import SimpleFileCache
 from comprendo.types.consolidated_report import ConsolidatedReport
 from comprendo.types.extraction_result import ExtractionResult
@@ -45,7 +46,7 @@ gemini_analysis_expert_llm = ChatGoogleGenerativeAI(
     max_tokens=1024,
     timeout=None,
     max_retries=1,
-    api_key=os.environ["GEMINI_API_KEY"],
+    api_key=app_config.str("GEMINI_API_KEY", None),
 ).with_config({"model": gemini_expert_model_name})
 
 anthropic_expert_model_name = "claude-3-5-sonnet-20240620"
@@ -225,8 +226,9 @@ supervisor_measurement_mapping_query_prompt = """Here is a list of measurement d
 # Your Task - Map each to the canonical measurement id
 
 Below is the canonical list of measurements in use.
-Please consider the meaning of the description and match to each raw description the proper a canonical measurement id.
-If no obvious matching canonical measurement id is found - Use "?" as the id to mark "no match".
+Please consider the meaning of the description and match to each raw description the proper canonical measurement id.
+If no apparent match is found - Use "?" as the id to mark "no match".
+Partial matches are expected.
 
 # Canonical Measurements
 {canonical_measurement_list}

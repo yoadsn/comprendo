@@ -1,5 +1,4 @@
 import json
-import os
 import uuid
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,8 +8,8 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-load_dotenv()
 
+from comprendo.configuration import app_config
 from comprendo import __version__ as SERVER_VERSION
 from comprendo.process import process_task
 from comprendo.server.security import ClientCredentials, validate_api_key
@@ -76,7 +75,7 @@ def detect_mock_mode(
     client: Annotated[ClientCredentials, Depends(validate_api_key)],
     x_comprendo_mock_mode: Annotated[bool | None, Header()] = False,
 ) -> bool:
-    forced_mock_mode_active = os.environ.get("MOCK_MODE") == "True"
+    forced_mock_mode_active = app_config.bool("MOCK_MODE", False)
     return forced_mock_mode_active or client.mock_only or x_comprendo_mock_mode
 
 

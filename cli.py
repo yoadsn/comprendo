@@ -1,18 +1,15 @@
 import argparse
 import json
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from comprendo.configuration import app_config
 from comprendo.server.types.extract_coa_input import COARequest
-
-load_dotenv()
-
 from comprendo.process import process_task
 from comprendo.types.task import Task
 
-mock_mode_active = os.environ.get("MOCK_MODE")
+mock_mode_active = app_config.bool("MOCK_MODE", False)
 BASE_STORAGE_DIR = Path("storage")
 TASK_REQUEST_FILE_NAME = "request.json"
 
