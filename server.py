@@ -6,13 +6,13 @@ from typing import Annotated, List
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-
-from comprendo.configuration import app_config
 from comprendo import __version__ as SERVER_VERSION
+from comprendo.app_logging import set_logging_context
+from comprendo.configuration import app_config
 from comprendo.process import process_task
 from comprendo.server.security import ClientCredentials, validate_api_key
-from comprendo.app_logging import set_logging_context
 from comprendo.server.types.extract_coa_input import COARequest
 from comprendo.server.types.extract_coa_output import (
     BatchDataResponse,
@@ -131,3 +131,5 @@ async def extract_coa(
         response = map_extraction_result_to_response(task, extraction_result)
 
     return JSONResponse(content=response.model_dump())
+
+FastAPIInstrumentor.instrument_app(app)
