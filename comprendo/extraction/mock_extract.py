@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import random
 import string
@@ -127,7 +128,7 @@ def generate_extraction_result(
     return ExtractionResult(request_id=task.request.id, consolidated_report=consolidated_report)
 
 
-def extract(task: Task, image_artifacts: list[ImageArtifact]):
+async def extract(task: Task, image_artifacts: list[ImageArtifact]):
 
     consolidated_report: ConsolidatedReport = create_mock_consolidated_report(task, image_artifacts)
     mapping_table: MeasurementMappingTable = create_mock_mapping_table(task, consolidated_report)

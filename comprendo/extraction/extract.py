@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import pathlib
@@ -108,8 +109,7 @@ expert_prompt_template = ChatPromptTemplate(
 
 experts_cache_context = ["1", expert_system_prompt, expert_query_prompt]
 
-
-def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: list[ImageArtifact]):
+async def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: list[ImageArtifact]):
     logger.info(f"Extraction using {expert_llm.config['model']}")
     cache = SimpleFileCache(get_experts_cache_dir(task), experts_cache_context)
     cache_key = f"expert_response_{expert_llm.config['model']}"
@@ -132,7 +132,7 @@ def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: 
         images=[images_message],
     )
 
-    extraction_message: AIMessage = expert_llm.invoke(prompt)
+    extraction_message: AIMessage = await expert_llm.ainvoke(prompt)
     usage_metadata = extraction_message.usage_metadata
     logger.info(f"Extraction usage metadata: payload={json.dumps(extraction_message.usage_metadata)}")
     cost = usage_metadata_to_cost(expert_llm.config["model"], usage_metadata)
@@ -175,7 +175,7 @@ supervisor_consolidation_cache_context = [
 ]
 
 
-def supervisor_consolidation(task: Task, expert_results: list[str]) -> ConsolidatedReport:
+async def supervisor_consolidation(task: Task, expert_results: list[str]) -> ConsolidatedReport:
     logger.info(
         f'Consolidating {len(expert_results)} expert results using {supervisor_consolidator_llm.config["model"]}'
     )
@@ -197,7 +197,7 @@ def supervisor_consolidation(task: Task, expert_results: list[str]) -> Consolida
 
     logger.info(f"Invoking supervisor consolidator with prompt: payload={dumps(prompt)}")
 
-    full_response: dict = supervisor_consolidator_llm.invoke(prompt)
+    full_response: dict = await supervisor_consolidator_llm.ainvoke(prompt)
     response: ConsolidatedReport = full_response["parsed"]
     response_message: AIMessage = full_response["raw"]
     parsing_error: Optional[BaseException] = full_response["parsing_error"]
@@ -246,7 +246,7 @@ supervisor_mapping_cache_context = [
 ]
 
 
-def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> MeasurementMappingTable:
+async def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> MeasurementMappingTable:
     logger.info(f'Invoking supervisor mapping of consolidated report using {supervisor_mapper_llm.config["model"]}')
     cache = SimpleFileCache(get_supervisor_mapping_cache_dir(task), supervisor_mapping_cache_context)
     cache_key = "supervisor"
@@ -268,7 +268,7 @@ def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport) -> M
 
     logger.info(f"Supervisor mapping prompt: payload={dumps(prompt)}")
 
-    full_response: dict = supervisor_mapper_llm.invoke(prompt)
+    full_response: dict = await supervisor_mapper_llm.ainvoke(prompt)
     response: MeasurementMappingTable = full_response["parsed"]
     response_message: AIMessage = full_response["raw"]
     parsing_error: Optional[BaseException] = full_response["parsing_error"]
@@ -347,14 +347,15 @@ def generate_extraction_result(
     return final_extraction_results
 
 
-def extract(task: Task, image_artifacts: list[ImageArtifact]):
-    res_expert_1 = extract_from_images(anthropic_analysis_expert_llm, task, image_artifacts)
-    res_expert_2 = extract_from_images(gemini_analysis_expert_llm, task, image_artifacts)
+async def extract(task: Task, image_artifacts: list[ImageArtifact]):
+    res_expert_1_task = extract_from_images(anthropic_analysis_expert_llm, task, image_artifacts)
+    res_expert_2_task = extract_from_images(gemini_analysis_expert_llm, task, image_artifacts)
+    expert_results = await asyncio.gather(res_expert_1_task, res_expert_2_task)
 
-    consolidated_report: ConsolidatedReport = supervisor_consolidation(task, [res_expert_1, res_expert_2])
+    consolidated_report: ConsolidatedReport = await supervisor_consolidation(task, expert_results)
     # print_report_formatted(task, consolidated_report)
 
-    mapping_table = supervisor_mapping(task, consolidated_report)
+    mapping_table = await supervisor_mapping(task, consolidated_report)
     # print_mapping_table(mapping_table)
 
     extraction_result = generate_extraction_result(task, consolidated_report, mapping_table)

@@ -1,10 +1,11 @@
 import argparse
+import asyncio
 import json
 from pathlib import Path
 
 from comprendo.configuration import app_config
-from comprendo.server.types.extract_coa_input import COARequest
 from comprendo.process import process_task
+from comprendo.server.types.extract_coa_input import COARequest
 from comprendo.types.task import Task
 
 mock_mode_active = app_config.bool("MOCK_MODE", False)
@@ -40,7 +41,7 @@ def main():
     task.mock_mode = mock_mode_active
     # For CLI run - depend on local files from a predefined task storage folder
     documents_paths = [get_task_storage_dir(task.request.id) / doc_file for doc_file in doc_files]
-    result = process_task(task, documents_paths)
+    result = asyncio.run(process_task(task, documents_paths))
     print(result.model_dump_json(indent=2))
 
 

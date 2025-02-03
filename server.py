@@ -127,9 +127,10 @@ async def extract_coa(
             mock_mode=mock_mode,
         )
         set_logging_context(task=task, client=client)
-        extraction_result = process_task(task, documents_paths)
+        extraction_result = await process_task(task, documents_paths)
         response = map_extraction_result_to_response(task, extraction_result)
 
     return JSONResponse(content=response.model_dump())
+
 
 FastAPIInstrumentor.instrument_app(app)
