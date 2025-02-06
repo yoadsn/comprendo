@@ -19,6 +19,7 @@ def load_task_document_image_artifacts(documents_paths: list[Path]) -> list[Imag
 
 
 async def process_task(task: Task, documents_paths: list[Path]):
+    logger.info(f"Processing task with payload: {task.model_dump_json()}")
     logger.info(f"Processing extraction task with {len(documents_paths)} documents")
     image_artifacts = load_task_document_image_artifacts(documents_paths)
     logger.info(f"Derived {len(image_artifacts)} images")
