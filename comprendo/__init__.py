@@ -1,4 +1,4 @@
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 
 from comprendo.app_logging import init_logging
 import comprendo.monitoring
