@@ -1,27 +1,29 @@
 import asyncio
-import logging
-import os
-import pathlib
 import json
+import logging
+import pathlib
+import time
 from typing import Optional
 
-
 from langchain_anthropic import ChatAnthropic
-from langchain_core.load import dumps
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.load import dumps
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
-from comprendo.configuration import app_config
 from comprendo.caching.cache import SimpleFileCache
+from comprendo.configuration import app_config
+from comprendo.extraction.cost import usage_metadata_to_cost
 from comprendo.types.consolidated_report import ConsolidatedReport
 from comprendo.types.extraction_result import ExtractionResult
 from comprendo.types.image_artifact import ImageArtifact
-from comprendo.types.measurement_mapping import MeasurementMappingEntry, MeasurementMappingTable
+from comprendo.types.measurement_mapping import (
+    MeasurementMappingEntry,
+    MeasurementMappingTable,
+)
 from comprendo.types.task import Task
-from comprendo.extraction.cost import usage_metadata_to_cost
 
 base_cache_dir = pathlib.Path("analysis_cache")
 
@@ -109,6 +111,7 @@ expert_prompt_template = ChatPromptTemplate(
 
 experts_cache_context = ["1", expert_system_prompt, expert_query_prompt]
 
+
 async def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: list[ImageArtifact]):
     logger.info(f"Extraction started: model={expert_llm.config['model']}")
     cache = SimpleFileCache(get_experts_cache_dir(task), experts_cache_context)
@@ -132,15 +135,23 @@ async def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artif
         images=[images_message],
     )
 
+    invoke_start_time = time.time()
     extraction_message: AIMessage = await expert_llm.ainvoke(prompt)
+    invoke_total_time = time.time() - invoke_start_time
+
     usage_metadata = extraction_message.usage_metadata
-    logger.info(f"Extraction usage metadata: model={expert_llm.config['model']}, payload={json.dumps(extraction_message.usage_metadata)}")
+    logger.info(
+        f"Extraction usage metadata: model={expert_llm.config['model']}, payload={json.dumps(extraction_message.usage_metadata)}"
+    )
     cost = usage_metadata_to_cost(expert_llm.config["model"], usage_metadata)
     task.cost += cost
     logger.info(f"Extraction usage cost: model={expert_llm.config['model']}, cost={cost:.7f}")
 
     cache.put(cache_key, extraction_message.content)
-    logger.info(f"Extracted content: model={expert_llm.config['model']}, payload={json.dumps(extraction_message.content)}")
+    logger.info(
+        f"Extracted content: model={expert_llm.config['model']}, payload={json.dumps(extraction_message.content)}, time={invoke_total_time:.2f}s",
+        extra={"time": invoke_total_time, "model": expert_llm.config["model"]},
+    )
     return extraction_message.content
 
 
@@ -183,7 +194,9 @@ async def supervisor_consolidation(task: Task, expert_results: list[str]) -> Con
     cache_key = "supervisor"
     supervisor_cached_response = cache.get(cache_key)
     if supervisor_cached_response:
-        logger.info(f"Using cached supervisor consolidation response: model={supervisor_consolidator_llm.config['model']}, payload={supervisor_cached_response}")
+        logger.info(
+            f"Using cached supervisor consolidation response: model={supervisor_consolidator_llm.config['model']}, payload={supervisor_cached_response}"
+        )
         output_as_json = supervisor_cached_response
         return ConsolidatedReport.model_validate_json(output_as_json)
 
@@ -195,25 +208,40 @@ async def supervisor_consolidation(task: Task, expert_results: list[str]) -> Con
         expert_inputs=expert_responses_inputs,
     )
 
-    logger.info(f"Invoking supervisor consolidator with prompt: model={supervisor_consolidator_llm.config['model']}, payload={dumps(prompt)}")
+    logger.info(
+        f"Invoking supervisor consolidator with prompt: model={supervisor_consolidator_llm.config['model']}, payload={dumps(prompt)}"
+    )
 
+    invoke_start_time = time.time()
     full_response: dict = await supervisor_consolidator_llm.ainvoke(prompt)
+    invoke_total_time = time.time() - invoke_start_time
+
     response: ConsolidatedReport = full_response["parsed"]
     response_message: AIMessage = full_response["raw"]
     parsing_error: Optional[BaseException] = full_response["parsing_error"]
     if parsing_error:
-        logger.error(f"Error parsing supervisor consolidation response: model={supervisor_consolidator_llm.config['model']}, error={parsing_error}")
+        logger.error(
+            f"Error parsing supervisor consolidation response: model={supervisor_consolidator_llm.config['model']}, error={parsing_error}"
+        )
         raise parsing_error
 
     usage_metadata = response_message.usage_metadata
-    logger.info(f"Supervisor consolidation usage metadata: model={supervisor_consolidator_llm.config['model']}, payload={response_message.usage_metadata}")
-    cost = usage_metadata_to_cost(supervisor_consolidator_llm.config['model'], usage_metadata)
+    logger.info(
+        f"Supervisor consolidation usage metadata: model={supervisor_consolidator_llm.config['model']}, payload={response_message.usage_metadata}"
+    )
+    cost = usage_metadata_to_cost(supervisor_consolidator_llm.config["model"], usage_metadata)
     task.cost += cost
-    logger.info(f"Supervisor consolidation cost: model={supervisor_consolidator_llm.config['model']}, cost={cost:.7f}")
+    logger.info(
+        f"Supervisor consolidation cost: model={supervisor_consolidator_llm.config['model']}, cost={cost:.7f}",
+        extra={"model": supervisor_consolidator_llm.config["model"]},
+    )
 
     response_as_json_dump = response.model_dump_json()
     cache.put(cache_key, response_as_json_dump)
-    logger.info(f"Supervisor consolidation response: model={supervisor_consolidator_llm.config['model']}, payload={response_as_json_dump}")
+    logger.info(
+        f"Supervisor consolidation response: model={supervisor_consolidator_llm.config['model']}, payload={response_as_json_dump}, time={invoke_total_time:.2f}s",
+        extra={"time": invoke_total_time, "model": supervisor_consolidator_llm.config["model"]},
+    )
 
     return response
 
@@ -268,21 +296,34 @@ async def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport
 
     logger.info(f"Supervisor mapping prompt: model={supervisor_mapper_llm.config['model']}, payload={dumps(prompt)}")
 
+    invoke_start_time = time.time()
     full_response: dict = await supervisor_mapper_llm.ainvoke(prompt)
+    invoke_total_time = time.time() - invoke_start_time
+
     response: MeasurementMappingTable = full_response["parsed"]
     response_message: AIMessage = full_response["raw"]
     parsing_error: Optional[BaseException] = full_response["parsing_error"]
     if parsing_error:
-        logger.error(f"Error parsing supervisor mapping response: model={supervisor_mapper_llm.config['model']}, error={parsing_error}")
+        logger.error(
+            f"Error parsing supervisor mapping response: model={supervisor_mapper_llm.config['model']}, error={parsing_error}"
+        )
         raise parsing_error
 
     usage_metadata = response_message.usage_metadata
-    logger.info(f"Supervisor mapping usage metadata: model={supervisor_mapper_llm.config['model']}, payload={response_message.usage_metadata}")
-    cost = usage_metadata_to_cost(supervisor_mapper_llm.config['model'], usage_metadata)
+    logger.info(
+        f"Supervisor mapping usage metadata: model={supervisor_mapper_llm.config['model']}, payload={response_message.usage_metadata}"
+    )
+    cost = usage_metadata_to_cost(supervisor_mapper_llm.config["model"], usage_metadata)
     task.cost += cost
-    logger.info(f"Supervisor mapping cost: model={supervisor_mapper_llm.config['model']}, cost={cost:.7f}")
+    logger.info(
+        f"Supervisor mapping cost: model={supervisor_mapper_llm.config['model']}, cost={cost:.7f}",
+        {"model": {supervisor_mapper_llm.config["model"]}},
+    )
 
-    logger.info(f"Supervisor mapping llm response: model={supervisor_mapper_llm.config['model']}, payload={response.model_dump_json()}")
+    logger.info(
+        f"Supervisor mapping llm response: model={supervisor_mapper_llm.config['model']}, payload={response.model_dump_json()}, time={invoke_total_time:.2f}s",
+        extra={"time": invoke_total_time, "model": supervisor_mapper_llm.config["model"]},
+    )
 
     # Add to the table the canonicals as well.
     # If the report contains verbatim canonical descriptions
@@ -301,7 +342,9 @@ async def supervisor_mapping(task: Task, consolidated_report: ConsolidatedReport
 
     response_as_json_dump = response.model_dump_json()
     cache.put(cache_key, response_as_json_dump)
-    logger.info(f"Supervisor mapping final result: model={supervisor_mapper_llm.config['model']}, payload={response_as_json_dump}")
+    logger.info(
+        f"Supervisor mapping final result: model={supervisor_mapper_llm.config['model']}, payload={response_as_json_dump}"
+    )
     return response
 
 
