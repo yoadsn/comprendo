@@ -39,8 +39,19 @@ GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS = {
 }
 
 
-def usage_metadata_to_cost(model_name: str, usage_metadata: UsageMetadata) -> float:
-    token_usage = {"total_tokens": usage_metadata["total_tokens"]}
+# Gemini 1.5 Pricing counts in characters. Assume about 4 chars per token
+VERTEX_AI_TOKEN_CHARS_RATIO = 4
+VERTEXAI_GEMINI_MODEL_COST_PER_1_INPUT_IMAGES = {"vertexai-gemini-1.5-flash": 0.00002}
+VERTEXAI_GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS = {"vertexai-gemini-1.5-flash": 0.00001875 * VERTEX_AI_TOKEN_CHARS_RATIO}
+VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS = {"vertexai-gemini-1.5-flash": 0.000075 * VERTEX_AI_TOKEN_CHARS_RATIO}
+
+
+def usage_metadata_to_cost(
+    model_name: str, usage_metadata: UsageMetadata, model_provider: str = None, input_images_count: int = 0
+) -> float:
+    cost_lookup_key = model_name
+    if model_provider is not None:
+        cost_lookup_key = f"{model_provider}-{model_name}"
     completion_tokens = usage_metadata["output_tokens"]
     prompt_tokens = usage_metadata["input_tokens"]
     prompt_tokens_cached = 0
@@ -50,25 +61,35 @@ def usage_metadata_to_cost(model_name: str, usage_metadata: UsageMetadata) -> fl
     if "reasoning" in usage_metadata.get("output_token_details", {}):
         reasoning_tokens = usage_metadata["output_token_details"]["reasoning"]
     uncached_prompt_tokens = prompt_tokens - prompt_tokens_cached
-    if model_name in OPENAI_MODEL_COST_PER_1K_TOKENS:
+
+    if cost_lookup_key in OPENAI_MODEL_COST_PER_1K_TOKENS:
         uncached_prompt_cost = get_openai_token_cost_for_model(
-            model_name, uncached_prompt_tokens, token_type=TokenType.PROMPT
+            cost_lookup_key, uncached_prompt_tokens, token_type=TokenType.PROMPT
         )
         cached_prompt_cost = get_openai_token_cost_for_model(
-            model_name, prompt_tokens_cached, token_type=TokenType.PROMPT_CACHED
+            cost_lookup_key, prompt_tokens_cached, token_type=TokenType.PROMPT_CACHED
         )
         prompt_cost = uncached_prompt_cost + cached_prompt_cost
         completion_cost = get_openai_token_cost_for_model(
-            model_name, completion_tokens, token_type=TokenType.COMPLETION
+            cost_lookup_key, completion_tokens, token_type=TokenType.COMPLETION
         )
         return prompt_cost + completion_cost
-    elif model_name in ANTHROPIC_MODEL_COST_PER_1K_INPUT_TOKENS:
-        return (prompt_tokens / 1000) * ANTHROPIC_MODEL_COST_PER_1K_INPUT_TOKENS[model_name] + (
+
+    elif cost_lookup_key in ANTHROPIC_MODEL_COST_PER_1K_INPUT_TOKENS:
+        return (prompt_tokens / 1000) * ANTHROPIC_MODEL_COST_PER_1K_INPUT_TOKENS[cost_lookup_key] + (
             completion_tokens / 1000
-        ) * ANTHROPIC_MODEL_COST_PER_1K_OUTPUT_TOKENS[model_name]
-    elif model_name in GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS:
-        return (prompt_tokens / 1000) * GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS[model_name] + (
+        ) * ANTHROPIC_MODEL_COST_PER_1K_OUTPUT_TOKENS[cost_lookup_key]
+
+    elif cost_lookup_key in GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS:
+        return (prompt_tokens / 1000) * GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS[cost_lookup_key] + (
             completion_tokens / 1000
-        ) * GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS[model_name]
+        ) * GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS[cost_lookup_key]
+
+    elif cost_lookup_key in VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS:
+        return (
+            (prompt_tokens / 1000) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS[cost_lookup_key]
+            + (input_images_count) * VERTEXAI_GEMINI_MODEL_COST_PER_1_INPUT_IMAGES[cost_lookup_key]
+            + (completion_tokens / 1000) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS[cost_lookup_key]
+        )
     else:
         return 0
