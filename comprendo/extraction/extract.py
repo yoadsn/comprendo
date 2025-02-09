@@ -5,17 +5,15 @@ import pathlib
 import time
 from typing import Optional
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.load import dumps
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from comprendo.caching.cache import SimpleFileCache
-from comprendo.configuration import app_config
 from comprendo.extraction.cost import usage_metadata_to_cost
+from comprendo.extraction.experts import enabled_coa_experts
 from comprendo.types.consolidated_report import ConsolidatedReport
 from comprendo.types.extraction_result import ExtractionResult
 from comprendo.types.image_artifact import ImageArtifact
@@ -41,25 +39,6 @@ def get_supervisor_consolidation_cache_dir(task: Task) -> pathlib.Path:
 def get_supervisor_mapping_cache_dir(task: Task) -> pathlib.Path:
     return base_cache_dir / task.request.id / "supervisor_mapping"
 
-
-gemini_expert_model_name = "gemini-1.5-flash"
-gemini_analysis_expert_llm = ChatGoogleGenerativeAI(
-    model=gemini_expert_model_name,
-    temperature=0,
-    max_tokens=1024,
-    timeout=None,
-    max_retries=1,
-    api_key=app_config.str("GEMINI_API_KEY", None),
-).with_config({"model": gemini_expert_model_name})
-
-anthropic_expert_model_name = "claude-3-5-sonnet-20240620"
-anthropic_analysis_expert_llm = ChatAnthropic(
-    model=anthropic_expert_model_name,
-    temperature=0,
-    max_tokens=1024,
-    timeout=None,
-    max_retries=1,
-).with_config({"model": anthropic_expert_model_name})
 
 supervisor_consolidator_model_name = "gpt-4o"
 supervisor_consolidator_llm = (
@@ -113,9 +92,15 @@ experts_cache_context = ["1", expert_system_prompt, expert_query_prompt]
 
 
 async def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artifacts: list[ImageArtifact]):
-    logger.info(f"Extraction started: model={expert_llm.config['model']}")
+    logger.info(
+        f"Extraction started: model={expert_llm.config['model']}",
+        extra={
+            "model": expert_llm.config["model"],
+            "provider": expert_llm.config.get("provider", ""),
+        },
+    )
     cache = SimpleFileCache(get_experts_cache_dir(task), experts_cache_context)
-    cache_key = f"expert_response_{expert_llm.config['model']}"
+    cache_key = f"expert_response_{expert_llm.config['model']}_{expert_llm.config.get('provider', 'default')}"
     cached_response = cache.get(cache_key)
     if cached_response:
         logger.info(f"Using cached response: model={expert_llm.config['model']}, payload={json.dumps(cached_response)}")
@@ -139,19 +124,29 @@ async def extract_from_images(expert_llm: BaseChatModel, task: Task, image_artif
     extraction_message: AIMessage = await expert_llm.ainvoke(prompt)
     invoke_total_time = time.time() - invoke_start_time
 
+    cache.put(cache_key, extraction_message.content)
+    logger.info(
+        f"Extracted content: model={expert_llm.config['model']}, payload={json.dumps(extraction_message.content)}, time={invoke_total_time:.2f}s",
+        extra={
+            "time": invoke_total_time,
+            "model": expert_llm.config["model"],
+            "provider": expert_llm.config.get("provider", ""),
+        },
+    )
+
     usage_metadata = extraction_message.usage_metadata
     logger.info(
         f"Extraction usage metadata: model={expert_llm.config['model']}, payload={json.dumps(extraction_message.usage_metadata)}"
     )
-    cost = usage_metadata_to_cost(expert_llm.config["model"], usage_metadata)
+    cost = usage_metadata_to_cost(
+        expert_llm.config["model"],
+        usage_metadata,
+        input_images_count=len(image_artifacts),
+        model_provider=expert_llm.config.get("provider", ""),
+    )
     task.cost += cost
     logger.info(f"Extraction usage cost: model={expert_llm.config['model']}, cost={cost:.7f}")
 
-    cache.put(cache_key, extraction_message.content)
-    logger.info(
-        f"Extracted content: model={expert_llm.config['model']}, payload={json.dumps(extraction_message.content)}, time={invoke_total_time:.2f}s",
-        extra={"time": invoke_total_time, "model": expert_llm.config["model"]},
-    )
     return extraction_message.content
 
 
@@ -391,9 +386,11 @@ def generate_extraction_result(
 
 
 async def extract(task: Task, image_artifacts: list[ImageArtifact]):
-    res_expert_1_task = extract_from_images(anthropic_analysis_expert_llm, task, image_artifacts)
-    res_expert_2_task = extract_from_images(gemini_analysis_expert_llm, task, image_artifacts)
-    expert_results = await asyncio.gather(res_expert_1_task, res_expert_2_task)
+    expert_results = []
+    for expert_llm in enabled_coa_experts:
+        res_expert_task = extract_from_images(expert_llm, task, image_artifacts)
+        expert_results.append(res_expert_task)
+    expert_results = await asyncio.gather(*expert_results)
 
     consolidated_report: ConsolidatedReport = await supervisor_consolidation(task, expert_results)
     # print_report_formatted(task, consolidated_report)

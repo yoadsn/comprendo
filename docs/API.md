@@ -1,4 +1,3 @@
-
 # COA Extraction Service API
 
 ## Overview
@@ -15,6 +14,31 @@ To use the COA Extraction Service, you need to authenticate using an API key. In
 `Authorization: Bearer <your_api_key>`
 
 *Note*: The API key is required also for the mock mode. Some api keys are limited to mock mode only.
+
+---
+
+## Health Check
+
+**URL:**  
+`https://{base_url}/ping`
+
+**Method:**  
+`GET`
+
+**Description:**  
+Simple health check endpoint that returns the server version.
+
+**Example Request:**
+```bash
+curl --location 'https://{base_url}/ping'
+```
+
+**Example Response:**
+```json
+{
+    "server_version": "0.4.3"
+}
+```
 
 ---
 
