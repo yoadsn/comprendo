@@ -77,3 +77,31 @@ The production deployment involves the following steps:
 > Note: Detailed instructions on setting up Azure Container Apps or ACR are out of scope for this document.
 
 > **Optional:** If not using Azure Application Insights, omit `APPLICATIONINSIGHTS_CONNECTION_STRING`.
+
+## Creating a JSON Dump of Google Service Account Credentials
+
+To use Google services without storing credentials in a file, you can serialize the credentials JSON as a string and load it from an environment variable. Follow these steps:
+
+1. **Obtain a Valid Credentials JSON File:**
+   - Ensure you have a valid JSON file for your Google service account.
+
+2. **Serialize the JSON File:**
+   - Use the following Python script to read the JSON file and serialize it as a string:
+
+   ```python
+   import json
+
+   def create_json_dump(file_path):
+       with open(file_path, 'r') as file:
+           json_content = file.read()
+           json_string = json.dumps(json_content)
+           print(json_string)
+
+   # Replace 'path/to/credentials.json' with the path to your credentials file
+   create_json_dump('path/to/credentials.json')
+   ```
+
+3. **Set the Environment Variable:**
+   - Copy the output string and set it as the value for `GOOGLE_APPLICATION_CREDENTIALS_JSON_DUMP` in your `.env` file.
+
+This approach allows you to securely load your Google service account credentials from an environment variable, avoiding the need to store them in a file on the filesystem.
