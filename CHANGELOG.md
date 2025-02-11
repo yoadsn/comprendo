@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2] - 2025-02-11
+
+### Changed
+- Refactor extraction module to use separate expert and supervisor modules
+
 ## [0.5.1] - 2025-02-11
 
 ### Changed
