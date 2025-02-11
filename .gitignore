@@ -69,7 +69,7 @@ __pycache__/
 *.pid
 
 # Local Calculation Caches
-analysis_cache
+extraction_cache
 storage
 
 # Local secrets and credentials
