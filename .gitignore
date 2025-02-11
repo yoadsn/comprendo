@@ -72,5 +72,5 @@ __pycache__/
 analysis_cache
 storage
 
-# Azure Function Apps
-local.settings.json
+# Local secrets and credentials
+secrets
