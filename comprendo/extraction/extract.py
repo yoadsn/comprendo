@@ -68,7 +68,7 @@ expert_system_prompt = "You are an expert in the field of material quality analy
 
 expert_query_prompt = """Please extract the inspection result values and identifying data from the provided document.
 Only report results never ranges. Only report results based on the actual content.
-Report results for each batch separately.
+Report results for each batch (when absent use lot number) separately.
 # General details to extract:
 purchase order no.
 ## Each batch:
@@ -162,6 +162,7 @@ Please consolidate expert responses into a coherent analysis report.
 
 Qualitative results should be reported as Boolean values: accept=True / reject=False
 If there is a disagreement between experts - Flag the inspected value.
+Sometimes no batch number is reported - use the lot number instead.
 Compensate for descriptions and units as much as possible - identification may not be precise.
 If the identification of the inspection like batch no. purchase order no. etc. is incoherent between experts - flag this as an identification warning.
 Measurements description should be descriptive and based on the reported measurements only"""
