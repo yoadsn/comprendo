@@ -1,0 +1,25 @@
+name: comprendo
+services:
+  api:
+    build: .
+    ports:
+      - "443:443"
+    env_file: ".env"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/google_auth
+    secrets:
+      - google_auth
+      - server_key
+      - server_cert
+    command: >
+      uvicorn server:app --host 0.0.0.0 --port 443 --workers 2
+      --ssl-keyfile /run/secrets/server_key
+      --ssl-certfile /run/secrets/server_cert
+
+secrets:
+  google_auth:
+    file: secrets/google_auth.json
+  server_key:
+    file: secrets/server.key
+  server_cert:
+    file: secrets/server.crt
