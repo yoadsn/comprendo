@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.4] - 2025-02-12
+
+### Changed
+- Add cors support - when enabled, allows all domain
+
 ## [0.5.3] - 2025-02-12
 
 ### Changed

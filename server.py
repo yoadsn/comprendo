@@ -7,6 +7,7 @@ from typing import Annotated, List
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from fastapi.middleware.cors import CORSMiddleware
 
 from comprendo import __version__ as SERVER_VERSION
 from comprendo.app_logging import set_logging_context
@@ -27,6 +28,15 @@ from comprendo.types.extraction_result import ExtractionResult
 from comprendo.types.task import Task
 
 app = FastAPI()
+
+if app_config.bool("CORS_ALLOW_ALL", False):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 def map_extracted_batch_result_to_response_measurement(
