@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.3] - 2025-02-12
+
+### Changed
+- Easier Google auth configuration and handling of no credentials such app does not crash - instead disables the Google Gemini VertexAI expert
+
 ## [0.5.2] - 2025-02-11
 
 ### Changed

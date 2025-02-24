@@ -15,7 +15,7 @@ gemini_analysis_expert_llm = ChatGoogleGenerativeAI(
 ).with_config({"model": gemini_expert_model_name})
 
 vertextai_gemini_analysis_expert_llm = None
-# Will crash with credentials - so only create if credentials are configured
+# Handle case where credentials are not configured
 if is_google_auth_configured():
     vertextai_gemini_analysis_expert_llm = ChatVertexAI(
         model=gemini_expert_model_name,
@@ -26,3 +26,5 @@ if is_google_auth_configured():
         # Credentials loaded from env-var
         credentials=load_google_auth_credentials(),
     ).with_config({"model": gemini_expert_model_name, "provider": "vertexai"})
+else:
+    print("Google authentication credentials not configured. Disabling VertexAI Gemini expert.")
