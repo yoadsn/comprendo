@@ -1,0 +1,17 @@
+name: comprendo
+services:
+  api:
+    build: .
+    ports:
+      - "3100:3100"
+    env_file: ".env"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/google_auth
+    
+    secrets:
+      - google_auth
+
+secrets:
+  google_auth:
+    file: secrets/google_auth.json
+    

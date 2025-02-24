@@ -13,3 +13,9 @@ def load_google_auth_credentials():
         return credentials
 
     return None
+
+
+def is_google_auth_configured():
+    auth_from_env = app_config.str("GOOGLE_APPLICATION_CREDENTIALS", None)
+    auth_from_dumped_json = app_config.str("GOOGLE_APPLICATION_CREDENTIALS_JSON_DUMP", None)
+    return auth_from_env is not None or auth_from_dumped_json is not None
