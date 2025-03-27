@@ -10,6 +10,9 @@ services:
     
     secrets:
       - google_auth
+    
+    logging:
+      driver: local
 
 secrets:
   google_auth:

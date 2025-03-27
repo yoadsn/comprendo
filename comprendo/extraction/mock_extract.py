@@ -1,14 +1,24 @@
 import asyncio
 import datetime
+import logging
 import random
 import string
 from typing import Mapping
-from comprendo.types.consolidated_report import ConsolidatedBatch, ConsolidatedMeasurementResult, ConsolidatedReport
+
+from comprendo.types.consolidated_report import (
+    ConsolidatedBatch,
+    ConsolidatedMeasurementResult,
+    ConsolidatedReport,
+)
 from comprendo.types.extraction_result import ExtractionResult
 from comprendo.types.image_artifact import ImageArtifact
-from comprendo.types.measurement_mapping import MeasurementMappingEntry, MeasurementMappingTable
+from comprendo.types.measurement_mapping import (
+    MeasurementMappingEntry,
+    MeasurementMappingTable,
+)
 from comprendo.types.task import Task
 
+logger = logging.getLogger(__name__)
 
 def random_decide(prob: float = 0.5) -> bool:
     return random.random() < prob
@@ -134,4 +144,6 @@ async def extract(task: Task, image_artifacts: list[ImageArtifact]):
     mapping_table: MeasurementMappingTable = create_mock_mapping_table(task, consolidated_report)
 
     extraction_result = generate_extraction_result(task, consolidated_report, mapping_table)
+
+    logger.info(f"Total extraction cost: cost=0 (Mock Mode)")
     return extraction_result
