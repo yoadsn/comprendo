@@ -26,7 +26,7 @@ To set up the project locally, follow these steps:
      - `GOOGLE_APPLICATION_CREDENTIALS_JSON_DUMP` (See below on how to create this from a valid credentials JSON file)
      - `DISABLE_AUTHENTICATION=True` (If not disabled, ensure `CLIENT_APP_0` is defined - See below)
      - `COA_EXPERT_0` (Required if not in mock mode, choose from: `anthropic-claude-3-5-sonnet`, `gemini-1-5-flash`, `vertexai-gemini-1-5-flash`)
-     - [Add any other mandatory configurations you identify]
+     - `LOG_TO_FOLDER` (Optional) Path to a directory where rotating log files will be stored. If not specified, file logging is disabled.
 
    - **Note:** `MOCK_MODE` should generally be disabled even in development - you can enable it per-request by sending the "x-comprendo-mock-mode=True" header or setting a mock-only user and authenticating with that user.
 

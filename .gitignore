@@ -77,3 +77,6 @@ storage
 
 # Local secrets and credentials
 secrets
+
+# Local logs folder
+logs

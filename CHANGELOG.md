@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.5] - 2025-03-27
+
+### Added
+- Add support for `LOG_TO_FOLDER` environment variable to configure rotating file logs (20MB per file, max 5 files)
+
 ## [0.5.4] - 2025-02-12
 
 ### Changed
