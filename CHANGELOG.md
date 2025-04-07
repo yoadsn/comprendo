@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.6] - 2025-04-07
+
+### Added
+- Add support for new Gemini 2.0 models (gemini-2.0-flash-lite, gemini-2.0-flash)
+- Add support for Claude 3.7 Sonnet model (claude-3-7-sonnet-20250219)
+- Add support for VertexAI Gemini 2.0 models
+
+### Changed
+- Update LangChain packages to newer versions
+- Refactor model provider handling to use None instead of empty string as default
+- Improve cost calculation logic for different image input costs
+
 ## [0.5.5] - 2025-03-27
 
 ### Added
