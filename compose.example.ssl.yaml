@@ -7,6 +7,10 @@ services:
     env_file: ".env"
     logging:
       driver: local
+    volumes:
+      - type: bind
+        source: ./logs
+        target: /code/logs
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/google_auth
     secrets:

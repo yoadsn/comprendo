@@ -13,6 +13,11 @@ services:
     
     logging:
       driver: local
+    volumes:
+      - type: bind
+        source: ./logs
+        target: /code/logs
+    
 
 secrets:
   google_auth:
