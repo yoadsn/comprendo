@@ -1,18 +1,26 @@
 import logging
 
 from comprendo.configuration import app_config
-from comprendo.extraction.experts.coa_claude import anthropic_analysis_expert_llm
+from comprendo.extraction.experts.coa_claude import (
+    anthropic_legacy_expert_model_name,
+    anthropic_analysis_expert_llm,
+)
 from comprendo.extraction.experts.coa_gemini import (
+    gemini_legacy_expert_model_name,
     gemini_analysis_expert_llm,
+    vertextai_gemini_legacy_analysis_expert_llm,
     vertextai_gemini_analysis_expert_llm,
 )
 
 logger = logging.getLogger(__name__)
 
 available_coa_experts = {
-    "anthropic-claude-3-5-sonnet": anthropic_analysis_expert_llm,
-    "gemini-1-5-flash": gemini_analysis_expert_llm,
-    "vertexai-gemini-1-5-flash": vertextai_gemini_analysis_expert_llm,
+    "anthropic-claude-3-5-sonnet": anthropic_legacy_expert_model_name,
+    "anthropic-claude-3-7-sonnet": anthropic_analysis_expert_llm,
+    "gemini-1-5-flash": gemini_legacy_expert_model_name,
+    "gemini-2-0-flash-lite": gemini_analysis_expert_llm,
+    "vertexai-gemini-1-5-flash": vertextai_gemini_legacy_analysis_expert_llm,
+    "vertexai-gemini-2-0-flash-lite": vertextai_gemini_analysis_expert_llm,
 }
 
 _added_coa_experts = set()

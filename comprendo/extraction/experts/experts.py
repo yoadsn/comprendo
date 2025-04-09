@@ -54,7 +54,7 @@ async def extract_from_images_using_expert(expert_llm: BaseChatModel, task: Task
         f"Extraction started: model={expert_llm.config['model']}",
         extra={
             "model": expert_llm.config["model"],
-            "provider": expert_llm.config.get("provider", ""),
+            "provider": expert_llm.config.get("provider", None),
         },
     )
     cache = SimpleFileCache(get_experts_cache_dir(task), experts_cache_context)
@@ -88,7 +88,7 @@ async def extract_from_images_using_expert(expert_llm: BaseChatModel, task: Task
         extra={
             "time": invoke_total_time,
             "model": expert_llm.config["model"],
-            "provider": expert_llm.config.get("provider", ""),
+            "provider": expert_llm.config.get("provider", None),
         },
     )
 
@@ -100,7 +100,7 @@ async def extract_from_images_using_expert(expert_llm: BaseChatModel, task: Task
         expert_llm.config["model"],
         usage_metadata,
         input_images_count=len(image_artifacts),
-        model_provider=expert_llm.config.get("provider", ""),
+        model_provider=expert_llm.config.get("provider", None),
     )
     task.cost += cost
     logger.info(f"Extraction usage cost: model={expert_llm.config['model']}, cost={cost:.7f}")

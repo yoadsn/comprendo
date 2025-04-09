@@ -30,20 +30,32 @@ GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS = {
     "gemini-1.5-flash-long": 0.15 / 1000,
     "gemini-1.5-pro": 1.25 / 1000,
     "gemini-1.5-pro-long": 2.5 / 1000,
+    "gemini-2.0-flash-lite": 0.075 / 1000,
+    "gemini-2.0-flash": 0.1 / 1000,
 }
 GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS = {
     "gemini-1.5-flash": 0.30 / 1000,
     "gemini-1.5-flash-long": 0.60 / 1000,
     "gemini-1.5-pro": 5.0 / 1000,
     "gemini-1.5-pro-long": 10.00 / 1000,
+    "gemini-2.0-flash-lite": 0.3 / 1000,
+    "gemini-2.0-flash": 0.4 / 1000,
 }
 
 
 # Gemini 1.5 Pricing counts in characters. Assume about 4 chars per token
 VERTEX_AI_TOKEN_CHARS_RATIO = 4
 VERTEXAI_GEMINI_MODEL_COST_PER_1_INPUT_IMAGES = {"vertexai-gemini-1.5-flash": 0.00002}
-VERTEXAI_GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS = {"vertexai-gemini-1.5-flash": 0.00001875 * VERTEX_AI_TOKEN_CHARS_RATIO}
-VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS = {"vertexai-gemini-1.5-flash": 0.000075 * VERTEX_AI_TOKEN_CHARS_RATIO}
+VERTEXAI_GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS = {
+    "vertexai-gemini-1.5-flash": 0.00001875 * VERTEX_AI_TOKEN_CHARS_RATIO,
+    "vertexai-gemini-2.0-flash": 0.15 / 1000,
+    "vertexai-gemini-2.0-flash-lite": 0.075 / 1000,
+}
+VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS = {
+    "vertexai-gemini-1.5-flash": 0.000075 * VERTEX_AI_TOKEN_CHARS_RATIO,
+    "vertexai-gemini-2.0-flash": 0.6 / 1000,
+    "vertexai-gemini-2.0-flash-lite": 0.3 / 1000,
+}
 
 
 def usage_metadata_to_cost(
@@ -86,10 +98,16 @@ def usage_metadata_to_cost(
         ) * GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS[cost_lookup_key]
 
     elif cost_lookup_key in VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS:
-        return (
-            (prompt_tokens / 1000) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS[cost_lookup_key]
-            + (input_images_count) * VERTEXAI_GEMINI_MODEL_COST_PER_1_INPUT_IMAGES[cost_lookup_key]
-            + (completion_tokens / 1000) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS[cost_lookup_key]
-        )
+        # model that has a different cost for image input
+        if cost_lookup_key in VERTEXAI_GEMINI_MODEL_COST_PER_1_INPUT_IMAGES:
+            return (
+                (prompt_tokens / 1000) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS[cost_lookup_key]
+                + (input_images_count) * VERTEXAI_GEMINI_MODEL_COST_PER_1_INPUT_IMAGES[cost_lookup_key]
+                + (completion_tokens / 1000) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS[cost_lookup_key]
+            )
+        else:
+            return (prompt_tokens / 1000) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_INPUT_TOKENS[cost_lookup_key] + (
+                completion_tokens / 1000
+            ) * VERTEXAI_GEMINI_MODEL_COST_PER_1K_OUTPUT_TOKENS[cost_lookup_key]
     else:
         return 0
